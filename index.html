@@ -4,11 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Stickman Kaçışı</title>
-
 <style>
 body{margin:0;background:#111;font-family:Arial;touch-action:none}
 canvas{display:block;margin:auto;background:#222}
-
 .btn{
 position:fixed;bottom:20px;width:60px;height:60px;
 border-radius:50%;background:#00ffff88;
@@ -18,26 +16,22 @@ text-align:center;line-height:60px;font-size:24px
 #right{left:100px}
 #jump{right:100px}
 #slow{right:20px;background:#ffff0088}
-
+#hud{position:fixed;top:10px;right:10px;color:#fff}
 .screen{
 position:fixed;inset:0;background:#111;
 display:flex;flex-direction:column;
 align-items:center;justify-content:center;color:#fff
 }
-.screen h1{color:#00ffff;font-size:36px}
 .screen button{
 padding:15px 40px;font-size:22px;
 border:none;border-radius:30px;background:#00ffff
 }
-
-#hud{position:fixed;top:10px;right:10px;color:#fff}
 </style>
 </head>
 <body>
 
 <div id="menu" class="screen">
 <h1>Stickman Kaçışı</h1>
-<p>Gölgenden kaç!</p>
 <button onclick="start()">BAŞLA</button>
 </div>
 
@@ -47,7 +41,6 @@ border:none;border-radius:30px;background:#00ffff
 </div>
 
 <div id="hud">Süre: <span id="time">0.0</span></div>
-
 <canvas id="game" width="360" height="640"></canvas>
 
 <div id="left" class="btn">⬅️</div>
@@ -58,15 +51,16 @@ border:none;border-radius:30px;background:#00ffff
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 
-// GÖRSELLER
-const runImg=new Image(); runImg.src="player_run.png";
-const shadowImg=new Image(); shadowImg.src="shadow.png";
+// RESİMLER
+const runImg=new Image();
+runImg.src="player_run.png";
 
-// OYUN DEĞİŞKENLERİ
+const shadowImg=new Image();
+shadowImg.src="shadow.png";
+
+// OYUN
 let running=false,startTime=0,time=0;
-let cam=0,world=2400,slow=0,shield=true;
-
-// INPUT
+let cam=0,world=2000,slow=0,shield=true;
 let L=false,R=false;
 
 // OYUNCU
@@ -74,21 +68,16 @@ const p={x:50,y:520,w:40,h:50,vy:0};
 
 // GÖLGELER
 const shadows=[
- {x:-200,y:520,w:40,h:50,s:1.2},
- {x:-400,y:520,w:40,h:50,s:0.8}
+{x:-200,y:520,w:40,h:50,s:1.1},
+{x:-400,y:520,w:40,h:50,s:0.8}
 ];
 
 // PLATFORM & ÇIKIŞ
-const plats=[
- {x:500,y:480,w:120,h:10},
- {x:900,y:440,w:120,h:10},
- {x:1300,y:400,w:120,h:10}
-];
-const exit={x:world-80,y:500,w:40,h:80};
+const plats=[{x:600,y:480,w:120,h:10},{x:1000,y:440,w:120,h:10}];
+const exit={x:world-60,y:500,w:40,h:80};
 
 // ANİMASYON
 let frame=0,frameTick=0;
-
 const g=0.6,ground=560;
 
 // DOKUNMATİK
@@ -102,11 +91,10 @@ bind("right",()=>R=true,()=>R=false);
 bind("jump",()=>{if(p.y>=ground)p.vy=-12},()=>{});
 bind("slow",()=>{if(slow<=0)slow=180},()=>{});
 
-// OYUN AKIŞI
 function start(){
 document.getElementById("menu").style.display="none";
-init(); running=true;
-startTime=performance.now(); loop();
+init();running=true;
+startTime=performance.now();loop();
 }
 function reset(){
 document.getElementById("end").style.display="none";
@@ -115,10 +103,13 @@ start();
 function init(){
 p.x=50;p.y=520;p.vy=0;
 shadows.forEach((s,i)=>s.x=-200*i);
-shield=true; slow=0;
+shield=true;slow=0;
 }
 
-// UPDATE
+function hit(a,b){
+return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+
 function update(){
 if(!running)return;
 time=(performance.now()-startTime)/1000;
@@ -127,23 +118,23 @@ document.getElementById("time").innerText=time.toFixed(1);
 if(L)p.x-=3;
 if(R)p.x+=3;
 
-p.vy+=g; p.y+=p.vy;
+p.vy+=g;p.y+=p.vy;
 if(p.y>ground){p.y=ground;p.vy=0}
 
+// platform
 plats.forEach(pl=>{
-if(p.x<p.x+p.w && p.x+p.w>pl.x &&
-p.y+p.h>pl.y && p.y+p.h<pl.y+20){
-p.y=pl.y-p.h; p.vy=0;
+if(p.x<p.x+p.w&&p.x+p.w>pl.x&&p.y+p.h>pl.y&&p.y+p.h<pl.y+20){
+p.y=pl.y-p.h;p.vy=0;
 }
 });
 
-// ANİMASYON
+// animasyon
 if(L||R){
 frameTick++;
 if(frameTick>8){frame=(frame+1)%3;frameTick=0;}
 }else frame=0;
 
-// GÖLGELER
+// gölgeler
 if(slow>0)slow--;
 shadows.forEach(s=>{
 let sp=s.s*(slow>0?0.4:1);
@@ -155,52 +146,53 @@ else end("YAKALANDIN");
 });
 
 if(hit(p,exit)) end("KAÇTIN! 🎉");
-
 cam=Math.max(0,Math.min(p.x-180,world-360));
 }
 
-// DRAW
 function draw(){
 ctx.clearRect(0,0,360,640);
-ctx.save(); ctx.translate(-cam,0);
+ctx.save();ctx.translate(-cam,0);
 
-// ZEMİN
+// zemin
 ctx.fillStyle="#444";
 ctx.fillRect(0,600,world,40);
 
-// PLATFORM
+// platform
 ctx.fillStyle="#888";
 plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
 
-// ÇIKIŞ
+// çıkış
 ctx.fillStyle="#0f0";
 ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
 
-// OYUNCU
+// OYUNCU (GÜVENLİ)
 ctx.save();
+if(runImg.complete&&runImg.naturalWidth>0){
 if(L){
 ctx.scale(-1,1);
 ctx.drawImage(runImg,frame*100,0,100,100,-p.x-p.w,p.y,p.w,p.h);
 }else{
 ctx.drawImage(runImg,frame*100,0,100,100,p.x,p.y,p.w,p.h);
 }
+}else{
+ctx.fillStyle="#00ffff";
+ctx.fillRect(p.x,p.y,p.w,p.h);
+}
 ctx.restore();
 
-// GÖLGELER
+// GÖLGE (GÜVENLİ)
 shadows.forEach(s=>{
+if(shadowImg.complete&&shadowImg.naturalWidth>0){
 ctx.drawImage(shadowImg,s.x,s.y,s.w,s.h);
+}else{
+ctx.fillStyle="#000";
+ctx.fillRect(s.x,s.y,s.w,s.h);
+}
 });
 
 ctx.restore();
 }
 
-// ÇARPIŞMA
-function hit(a,b){
-return a.x<b.x+b.w && a.x+a.w>b.x &&
-a.y<b.y+b.h && a.y+a.h>b.y;
-}
-
-// BİTİŞ
 function end(t){
 running=false;
 document.getElementById("endText").innerText=t;
@@ -208,10 +200,9 @@ document.getElementById("end").style.display="flex";
 }
 
 function loop(){
-update(); draw();
+update();draw();
 if(running)requestAnimationFrame(loop);
 }
 </script>
-
 </body>
 </html>
