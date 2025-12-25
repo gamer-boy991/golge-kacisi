@@ -7,142 +7,143 @@
 <style>
 body{margin:0;background:#111;font-family:Arial,touch-action:none}
 canvas{display:block;margin:auto;background:#222}
-
-/* OYUN BUTONLARI */
-.btn{
- position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
- background:#00ffff88;color:#000;font-size:24px;
- text-align:center;line-height:60px;user-select:none
-}
+.btn{position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
+background:#00ffff88;color:#000;font-size:24px;text-align:center;line-height:60px}
 #left{left:20px} #right{left:100px}
 #jump{right:100px} #light{right:20px;background:#ffff0088}
 
-/* EKRANLAR */
-.screen{
- position:fixed;inset:0;background:#111;
- display:flex;flex-direction:column;
- align-items:center;justify-content:center;
- color:#fff;text-align:center
-}
-.screen h1{color:#00ffff;font-size:42px;margin:0}
-.screen button{
- margin-top:20px;padding:15px 40px;
- font-size:22px;border:none;border-radius:30px;
- background:#00ffff;color:#000
-}
+.screen{position:fixed;inset:0;background:#111;display:flex;
+flex-direction:column;align-items:center;justify-content:center;color:#fff}
+.screen h1{color:#00ffff;font-size:38px}
+.screen button{padding:15px 40px;font-size:22px;border:none;border-radius:30px;background:#00ffff}
+
+#hud{position:fixed;top:10px;right:10px;color:#fff;font-size:16px}
 </style>
 </head>
 <body>
 
-<!-- GİRİŞ -->
 <div id="menu" class="screen">
-  <h1>Gölge Kaçışı</h1>
-  <p>Gölgenden kaçabilir misin?</p>
-  <button onclick="startGame()">BAŞLA</button>
+<h1>Gölge Kaçışı</h1>
+<p>Gölgenden kaçabilir misin?</p>
+<button onclick="start()">BAŞLA</button>
 </div>
 
-<!-- GAME OVER -->
-<div id="over" class="screen" style="display:none">
-  <h1>YAKALANDIN</h1>
-  <button onclick="resetGame()">TEKRAR OYNA</button>
+<div id="end" class="screen" style="display:none">
+<h1 id="endText"></h1>
+<button onclick="reset()">TEKRAR OYNA</button>
 </div>
+
+<div id="hud">Süre: <span id="time">0.0</span></div>
 
 <canvas id="game" width="360" height="640"></canvas>
 
 <div id="left" class="btn">⬅️</div>
 <div id="right" class="btn">➡️</div>
 <div id="jump" class="btn">⬆️</div>
-<div id="light" class="btn">💡</div>
+<div id="light" class="btn">⚡</div>
 
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
-const worldWidth=2000;
-let camX=0, running=false;
-
-let L=false,R=false,cd=0;
+let level=1,world=2000,cam=0,running=false,startTime=0,time=0;
+let L=false,R=false,slow=0,shield=true;
 
 const p={x:50,y:520,w:30,h:40,vy:0};
-const s={x:-50,y:520,w:30,h:40,sp:1};
+const shadows=[
+ {x:-100,y:520,w:30,h:40,s:1.2},
+ {x:-300,y:520,w:30,h:40,s:0.8}
+];
+const exit={x:0,y:520,w:40,h:60};
 
 const g=0.6,gr=560;
+const plats=[{x:600,y:480,w:120,h:10},{x:1000,y:440,w:120,h:10}];
 
 const bind=(id,on,off)=>{
- const e=document.getElementById(id);
- e.addEventListener("touchstart",t=>{t.preventDefault();on()});
- e.addEventListener("touchend",t=>{t.preventDefault();off()});
+const e=document.getElementById(id);
+e.ontouchstart=t=>{t.preventDefault();on()};
+e.ontouchend=t=>{t.preventDefault();off()};
 };
 bind("left",()=>L=true,()=>L=false);
 bind("right",()=>R=true,()=>R=false);
 bind("jump",()=>{if(p.y>=gr)p.vy=-12},()=>{});
-bind("light",()=>{if(cd<=0)cd=180},()=>{});
+bind("light",()=>{if(slow<=0)slow=180},()=>{});
 
-function startGame(){
- document.getElementById("menu").style.display="none";
- running=true;
- loop();
+function start(){
+document.getElementById("menu").style.display="none";
+running=true;startTime=performance.now();loop();
 }
 
-function resetGame(){
- document.getElementById("over").style.display="none";
- p.x=50; p.y=520; p.vy=0;
- s.x=-50;
- camX=0; cd=0;
- running=true;
+function reset(){
+level=1;world=2000;init();
+document.getElementById("end").style.display="none";
+running=true;startTime=performance.now();
+}
+
+function init(){
+p.x=50;p.y=520;p.vy=0;
+shadows.forEach((s,i)=>s.x=-200*i);
+exit.x=world-60;shield=true;
 }
 
 function update(){
- if(!running) return;
+if(!running)return;
+time=(performance.now()-startTime)/1000;
+document.getElementById("time").innerText=time.toFixed(1);
 
- if(R) p.x+=3;
- if(L) p.x-=3;
- p.x=Math.max(0,Math.min(p.x,worldWidth-p.w));
+if(R)p.x+=3;if(L)p.x-=3;
+p.vy+=g;p.y+=p.vy;
+if(p.y>gr){p.y=gr;p.vy=0}
 
- p.vy+=g; p.y+=p.vy;
- if(p.y>gr){p.y=gr;p.vy=0}
+plats.forEach(pl=>{
+if(p.x<p.x+p.w&&p.x+p.w>pl.x&&p.y+p.h>pl.y&&p.y+p.h<pl.y+20){
+p.y=pl.y-p.h;p.vy=0;
+}
+});
 
- if(cd>0) cd--;
- else{
-  s.sp=(!L&&!R)?3:1;
-  s.x+=(p.x>s.x?s.sp:-s.sp);
- }
+if(slow>0)slow--;
+shadows.forEach(s=>{
+let sp=s.s*(slow>0?0.4:1);
+s.x+=(p.x>s.x?sp:-sp);
+if(collide(p,s)){
+if(shield){shield=false;s.x-=50;}
+else gameOver("YAKALANDIN");
+}
+});
 
- camX=p.x-180;
- camX=Math.max(0,Math.min(camX,worldWidth-360));
+if(collide(p,exit)) win();
 
- if(p.x<s.x+s.w&&p.x+p.w>s.x&&p.y<s.y+s.h&&p.y+p.h>s.y){
-  running=false;
-  document.getElementById("over").style.display="flex";
- }
+cam=Math.max(0,Math.min(p.x-180,world-360));
 }
 
 function draw(){
- ctx.clearRect(0,0,360,640);
- ctx.save();
- ctx.translate(-camX,0);
-
- ctx.fillStyle="#444";
- ctx.fillRect(0,600,worldWidth,40);
-
- ctx.fillStyle="#00ffff";
- ctx.fillRect(p.x,p.y,p.w,p.h);
-
- ctx.fillStyle="#000";
- ctx.fillRect(s.x,s.y,s.w,s.h);
-
- ctx.restore();
-
- if(cd>0){
-  ctx.fillStyle="rgba(255,255,200,0.2)";
-  ctx.fillRect(0,0,360,640);
- }
+ctx.clearRect(0,0,360,640);
+ctx.save();ctx.translate(-cam,0);
+ctx.fillStyle="#444";ctx.fillRect(0,600,world,40);
+ctx.fillStyle="#0f0";ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+ctx.fillStyle="#00ffff";ctx.fillRect(p.x,p.y,p.w,p.h);
+ctx.fillStyle="#000";shadows.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
+ctx.fillStyle="#888";plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
+ctx.restore();
 }
 
-function loop(){
- update(); draw();
- if(running) requestAnimationFrame(loop);
+function collide(a,b){
+return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 }
+
+function win(){
+running=false;
+document.getElementById("endText").innerText="KAÇTIN! 🎉";
+document.getElementById("end").style.display="flex";
+}
+
+function gameOver(t){
+running=false;
+document.getElementById("endText").innerText=t;
+document.getElementById("end").style.display="flex";
+}
+
+function loop(){update();draw();if(running)requestAnimationFrame(loop);}
+init();
 </script>
 
 </body>
 </html>
-
