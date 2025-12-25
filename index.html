@@ -1,5 +1,3 @@
-<details>
-<summary><strong>📄 index.html (tıkla aç)</strong></summary>
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -7,18 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Gölge Kaçışı</title>
 <style>
-body{margin:0;background:#111;touch-action:none}
+body{margin:0;background:#111;font-family:Arial,touch-action:none}
 canvas{display:block;margin:auto;background:#222}
-.btn{position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
-background:#00ffff88;color:#000;font-size:24px;text-align:center;
-line-height:60px;user-select:none}
+
+/* OYUN BUTONLARI */
+.btn{
+ position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
+ background:#00ffff88;color:#000;font-size:24px;
+ text-align:center;line-height:60px;user-select:none
+}
 #left{left:20px} #right{left:100px}
 #jump{right:100px} #light{right:20px;background:#ffff0088}
+
+/* EKRANLAR */
+.screen{
+ position:fixed;inset:0;background:#111;
+ display:flex;flex-direction:column;
+ align-items:center;justify-content:center;
+ color:#fff;text-align:center
+}
+.screen h1{color:#00ffff;font-size:42px;margin:0}
+.screen button{
+ margin-top:20px;padding:15px 40px;
+ font-size:22px;border:none;border-radius:30px;
+ background:#00ffff;color:#000
+}
 </style>
 </head>
 <body>
 
+<!-- GİRİŞ -->
+<div id="menu" class="screen">
+  <h1>Gölge Kaçışı</h1>
+  <p>Gölgenden kaçabilir misin?</p>
+  <button onclick="startGame()">BAŞLA</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="over" class="screen" style="display:none">
+  <h1>YAKALANDIN</h1>
+  <button onclick="resetGame()">TEKRAR OYNA</button>
+</div>
+
 <canvas id="game" width="360" height="640"></canvas>
+
 <div id="left" class="btn">⬅️</div>
 <div id="right" class="btn">➡️</div>
 <div id="jump" class="btn">⬆️</div>
@@ -26,9 +56,14 @@ line-height:60px;user-select:none}
 
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
+const worldWidth=2000;
+let camX=0, running=false;
+
 let L=false,R=false,cd=0;
+
 const p={x:50,y:520,w:30,h:40,vy:0};
-const s={x:250,y:520,w:30,h:40,sp:1};
+const s={x:-50,y:520,w:30,h:40,sp:1};
+
 const g=0.6,gr=560;
 
 const bind=(id,on,off)=>{
@@ -36,41 +71,78 @@ const bind=(id,on,off)=>{
  e.addEventListener("touchstart",t=>{t.preventDefault();on()});
  e.addEventListener("touchend",t=>{t.preventDefault();off()});
 };
-
 bind("left",()=>L=true,()=>L=false);
 bind("right",()=>R=true,()=>R=false);
 bind("jump",()=>{if(p.y>=gr)p.vy=-12},()=>{});
 bind("light",()=>{if(cd<=0)cd=180},()=>{});
 
+function startGame(){
+ document.getElementById("menu").style.display="none";
+ running=true;
+ loop();
+}
+
+function resetGame(){
+ document.getElementById("over").style.display="none";
+ p.x=50; p.y=520; p.vy=0;
+ s.x=-50;
+ camX=0; cd=0;
+ running=true;
+}
+
 function update(){
- if(R)p.x+=3; if(L)p.x-=3;
+ if(!running) return;
+
+ if(R) p.x+=3;
+ if(L) p.x-=3;
+ p.x=Math.max(0,Math.min(p.x,worldWidth-p.w));
+
  p.vy+=g; p.y+=p.vy;
  if(p.y>gr){p.y=gr;p.vy=0}
- if(cd>0)cd--;
+
+ if(cd>0) cd--;
  else{
   s.sp=(!L&&!R)?3:1;
   s.x+=(p.x>s.x?s.sp:-s.sp);
  }
+
+ camX=p.x-180;
+ camX=Math.max(0,Math.min(camX,worldWidth-360));
+
  if(p.x<s.x+s.w&&p.x+p.w>s.x&&p.y<s.y+s.h&&p.y+p.h>s.y){
-  alert("💀 Gölge seni yakaladı!");
-  location.reload();
+  running=false;
+  document.getElementById("over").style.display="flex";
  }
 }
 
 function draw(){
- ctx.clearRect(0,0,c.width,c.height);
- ctx.fillStyle="#444"; ctx.fillRect(0,600,360,40);
- ctx.fillStyle="#00ffff"; ctx.fillRect(p.x,p.y,p.w,p.h);
- ctx.fillStyle="#000"; ctx.fillRect(s.x,s.y,s.w,s.h);
+ ctx.clearRect(0,0,360,640);
+ ctx.save();
+ ctx.translate(-camX,0);
+
+ ctx.fillStyle="#444";
+ ctx.fillRect(0,600,worldWidth,40);
+
+ ctx.fillStyle="#00ffff";
+ ctx.fillRect(p.x,p.y,p.w,p.h);
+
+ ctx.fillStyle="#000";
+ ctx.fillRect(s.x,s.y,s.w,s.h);
+
+ ctx.restore();
+
  if(cd>0){
   ctx.fillStyle="rgba(255,255,200,0.2)";
   ctx.fillRect(0,0,360,640);
  }
 }
 
-(function loop(){update();draw();requestAnimationFrame(loop)})();
+function loop(){
+ update(); draw();
+ if(running) requestAnimationFrame(loop);
+}
 </script>
 
 </body>
 </html>
-</details>
+
