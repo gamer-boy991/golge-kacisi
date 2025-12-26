@@ -5,25 +5,61 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Gölge Kaçışı</title>
 
+<!-- PWA -->
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Gölge Kaçışı">
 
 <style>
-body{margin:0;background:#000;font-family:Arial;touch-action:none}
-canvas{display:block;margin:auto}
+body{
+  margin:0;
+  background:#000;
+  font-family:Arial;
+  touch-action:none;
+  overflow:hidden;
+}
+canvas{
+  display:block;
+  margin:auto;
+}
+
+/* Kontroller */
 .btn{
-  position:fixed;bottom:20px;width:60px;height:60px;
-  border-radius:50%;background:#00ffff88;
-  text-align:center;line-height:60px;font-size:24px
+  position:fixed;
+  bottom:10px;
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:#00ffff88;
+  text-align:center;
+  line-height:60px;
+  font-size:24px;
+  user-select:none;
 }
-#left{left:20px} #right{left:100px} #jump{right:20px}
+#left{left:20px}
+#right{left:100px}
+#jump{right:20px}
+
+/* Ekranlar */
 .overlay{
-  position:fixed;inset:0;display:flex;
-  justify-content:center;align-items:center;
-  flex-direction:column;background:#000c;color:#fff
+  position:fixed;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  background:#000c;
+  color:#fff;
+  text-align:center;
 }
-.overlay button{padding:12px 30px;font-size:20px}
+.overlay button{
+  margin-top:20px;
+  padding:12px 30px;
+  font-size:20px;
+  border:0;
+  border-radius:10px;
+}
 </style>
 </head>
 
@@ -35,11 +71,14 @@ canvas{display:block;margin:auto}
 <div id="right" class="btn">➡️</div>
 <div id="jump" class="btn">⬆️</div>
 
+<!-- GİRİŞ -->
 <div id="menu" class="overlay">
   <h1>GÖLGE KAÇIŞI</h1>
+  <p>Koş • Zıpla • Kaç</p>
   <button onclick="startGame()">BAŞLA</button>
 </div>
 
+<!-- ÖLÜM -->
 <div id="dead" class="overlay" style="display:none">
   <h1>💀 ÖLDÜN</h1>
   <p>Skor: <span id="finalScore">0</span></p>
@@ -47,121 +86,204 @@ canvas{display:block;margin:auto}
 </div>
 
 <script>
-const c=document.getElementById("game"),ctx=c.getContext("2d");
-const W=360,H=640,dpr=window.devicePixelRatio||1;
-c.style.width=W+"px";c.style.height=H+"px";
-c.width=W*dpr;c.height=H*dpr;ctx.scale(dpr,dpr);
+/* ================= CANVAS + RETINA ================= */
+const c = document.getElementById("game");
+const ctx = c.getContext("2d");
 
-let gameState="menu";
-const groundY=600,charH=60,charY=groundY-charH,gravity=0.6;
+const W = 640;
+const H = 360;
+const dpr = window.devicePixelRatio || 1;
 
-const p={x:50,y:charY,w:40,h:charH,vy:0};
-let cam=0,score=0,lives=3;
+c.style.width = W + "px";
+c.style.height = H + "px";
+c.width = W * dpr;
+c.height = H * dpr;
+ctx.scale(dpr, dpr);
 
-let shadow,npc,bear,spikes=[];
+/* ================= OYUN DURUMU ================= */
+let gameState = "menu";
 
-let L=false,R=false;
-left.ontouchstart=()=>L=true; left.ontouchend=()=>L=false;
-right.ontouchstart=()=>R=true; right.ontouchend=()=>R=false;
-jump.ontouchstart=()=>{if(p.y>=charY)p.vy=-12};
+/* ================= SABİTLER ================= */
+const groundY = 300;
+const charH = 60;
+const charY = groundY - charH;
+const gravity = 0.6;
 
-const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+/* ================= OYUNCU ================= */
+const player = {
+  x: 50,
+  y: charY,
+  w: 40,
+  h: charH,
+  vy: 0
+};
 
+/* ================= DÜŞMAN & ENGELLER ================= */
+let shadow, npc, bear, spikes = [];
+
+/* ================= KAMERA & DURUM ================= */
+let cam = 0;
+let score = 0;
+let lives = 3;
+
+/* ================= KONTROLLER ================= */
+let L = false, R = false;
+
+left.ontouchstart = () => L = true;
+left.ontouchend   = () => L = false;
+right.ontouchstart= () => R = true;
+right.ontouchend  = () => R = false;
+jump.ontouchstart = () => {
+  if (player.y >= charY) player.vy = -12;
+};
+
+/* ================= ÇARPIŞMA ================= */
+function hit(a,b){
+  return a.x < b.x + b.w &&
+         a.x + a.w > b.x &&
+         a.y < b.y + b.h &&
+         a.y + a.h > b.y;
+}
+
+/* ================= BAŞLAT ================= */
 function startGame(){
-  menu.style.display="none";
-  dead.style.display="none";
-  gameState="play";
+  menu.style.display = "none";
+  dead.style.display = "none";
+  gameState = "play";
   reset();
 }
 
+/* ================= RESET ================= */
 function reset(){
-  p.x=50;p.y=charY;p.vy=0;
-  cam=0;score=0;lives=3;
+  player.x = 50;
+  player.y = charY;
+  player.vy = 0;
 
-  shadow={x:-200,y:charY,w:40,h:charH,s:1};
-  npc={x:600,y:charY,w:40,h:charH,dir:1,min:550,max:850};
-  bear={x:900,y:charY,w:60,h:60,dir:-1,min:800,max:1200,s:0.8};
+  cam = 0;
+  score = 0;
+  lives = 3;
 
-  spikes=[
-    {x:400,y:groundY-40,w:30,h:40},
-    {x:750,y:groundY-40,w:30,h:40},
-    {x:1100,y:groundY-40,w:30,h:40}
+  shadow = { x:-200, y:charY, w:40, h:charH, s:1 };
+  npc    = { x:600, y:charY, w:40, h:charH, dir:1, min:550, max:850 };
+  bear   = { x:900, y:charY, w:60, h:60, dir:-1, min:800, max:1200, s:0.8 };
+
+  spikes = [
+    {x:400, y:groundY-40, w:30, h:40},
+    {x:750, y:groundY-40, w:30, h:40},
+    {x:1100,y:groundY-40, w:30, h:40}
   ];
 }
 
+/* ================= ÖLÜM ================= */
 function die(){
-  gameState="dead";
-  finalScore.innerText=score;
-  dead.style.display="flex";
+  gameState = "dead";
+  finalScore.innerText = score;
+  dead.style.display = "flex";
 }
 
-function restart(){startGame();}
+function restart(){
+  startGame();
+}
 
+/* ================= UPDATE ================= */
 function update(){
-  if(L)p.x-=3;
-  if(R)p.x+=3;
+  if (L) player.x -= 3;
+  if (R) player.x += 3;
 
-  p.vy+=gravity;
-  p.y+=p.vy;
-  if(p.y>charY){p.y=charY;p.vy=0}
-
-  shadow.x+=shadow.s;
-  npc.x+=npc.dir*1.2;
-  if(npc.x<npc.min||npc.x>npc.max)npc.dir*=-1;
-
-  bear.x+=bear.s*bear.dir;
-  if(bear.x<bear.min||bear.x>bear.max)bear.dir*=-1;
-
-  if(hit(p,shadow)||hit(p,npc)||hit(p,bear)||spikes.some(s=>hit(p,s))){
-    lives--;
-    p.x=50;
-    if(lives<=0)die();
+  player.vy += gravity;
+  player.y += player.vy;
+  if (player.y > charY){
+    player.y = charY;
+    player.vy = 0;
   }
 
-  cam=Math.max(0,p.x-180);
-  score=Math.max(score,Math.floor(p.x/10));
+  /* GÖLGE – AKILLI TAKİP */
+  const dx = player.x - shadow.x;
+  shadow.x += Math.sign(dx) * shadow.s;
+
+  /* NPC */
+  npc.x += npc.dir * 1.2;
+  if (npc.x < npc.min || npc.x > npc.max) npc.dir *= -1;
+
+  /* AYI */
+  bear.x += bear.dir * bear.s;
+  if (bear.x < bear.min || bear.x > bear.max) bear.dir *= -1;
+
+  /* ÇARPIŞMALAR */
+  if (
+    hit(player,shadow) ||
+    hit(player,npc) ||
+    hit(player,bear) ||
+    spikes.some(s => hit(player,s))
+  ){
+    lives--;
+    player.x = 50;
+    if (lives <= 0) die();
+  }
+
+  cam = Math.max(0, player.x - 320);
+  score = Math.max(score, Math.floor(player.x / 10));
 }
 
+/* ================= ÇİZİM ================= */
 function draw(){
   ctx.clearRect(0,0,W,H);
-  ctx.save();ctx.translate(-cam,0);
+  ctx.save();
+  ctx.translate(-cam,0);
 
-  ctx.fillStyle="#123";
+  /* ARKA PLAN */
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,"#0a1a2a");
+  bg.addColorStop(1,"#1e3c5a");
+  ctx.fillStyle = bg;
   ctx.fillRect(0,0,2000,H);
 
-  ctx.fillStyle="#444";
+  /* ZEMİN */
+  ctx.fillStyle = "#444";
   ctx.fillRect(0,groundY,2000,40);
 
-  ctx.fillStyle="#f00";
-  spikes.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
+  /* DİKENLER */
+  ctx.fillStyle = "#f00";
+  spikes.forEach(s => ctx.fillRect(s.x,s.y,s.w,s.h));
 
-  ctx.fillStyle="#0ff";
-  ctx.fillRect(p.x,p.y,p.w,p.h);
+  /* OYUNCU */
+  ctx.fillStyle = "#0ff";
+  ctx.fillRect(player.x,player.y,player.w,player.h);
 
-  ctx.fillStyle="#000";
+  /* GÖLGE */
+  ctx.fillStyle = "#000";
   ctx.fillRect(shadow.x,shadow.y,shadow.w,shadow.h);
 
-  ctx.fillStyle="#ff0";
+  /* NPC */
+  ctx.fillStyle = "#ff0";
   ctx.fillRect(npc.x,npc.y,npc.w,npc.h);
 
-  ctx.fillStyle="#8b4513"; // 🐻 AYI
+  /* AYI */
+  ctx.fillStyle = "#8b4513";
   ctx.fillRect(bear.x,bear.y,bear.w,bear.h);
 
   ctx.restore();
 
-  ctx.fillStyle="#fff";
-  ctx.fillText("❤️ "+lives+"  🪙 "+score,10,20);
+  /* HUD */
+  ctx.fillStyle = "#fff";
+  ctx.fillText("❤️ "+lives+"   🪙 "+score,10,20);
 }
 
+/* ================= LOOP ================= */
 function loop(){
-  if(gameState==="play"){update();draw();}
+  if (gameState === "play"){
+    update();
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 loop();
 
-if("serviceWorker"in navigator){
+/* ================= SERVICE WORKER ================= */
+if ("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js");
 }
 </script>
+
 </body>
 </html>
