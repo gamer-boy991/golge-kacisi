@@ -4,14 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Gölge Kaçışı</title>
+
 <style>
-body{margin:0;background:#111;font-family:Arial;touch-action:none}
-canvas{display:block;margin:auto;background:#222}
-.btn{position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
-background:#00ffff88;text-align:center;line-height:60px;font-size:24px}
+body{margin:0;background:#000;font-family:Arial;touch-action:none}
+canvas{display:block;margin:auto}
+.btn{
+  position:fixed;bottom:20px;width:60px;height:60px;
+  border-radius:50%;background:#00ffff88;
+  text-align:center;line-height:60px;font-size:24px
+}
 #left{left:20px} #right{left:100px}
 #jump{right:100px} #slow{right:20px;background:#ffff0088}
-#hud{position:fixed;top:10px;left:10px;color:#fff}
+#hud{position:fixed;top:10px;left:10px;color:#fff;font-size:14px}
 </style>
 </head>
 
@@ -33,7 +37,7 @@ Level <span id="lvl">1</span>
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 
-// 🔊 Ses
+// 🔊 Basit ses
 const audio=new (window.AudioContext||window.webkitAudioContext)();
 function beep(f=400,d=0.1){
   const o=audio.createOscillator(),g=audio.createGain();
@@ -42,22 +46,25 @@ function beep(f=400,d=0.1){
   g.gain.exponentialRampToValueAtTime(0.001,audio.currentTime+d);
 }
 
+// 📐 Ortak ölçüler
+const groundY = 600;
+const charH = 60;
+const charY = groundY - charH;
+const g = 0.6;
+
 // Oyun durumu
 let level=1,score=0,lives=3;
 let world=2000,cam=0,shake=0,slow=0;
 let L=false,R=false;
 
-const ground=560,g=0.6;
-
 // Oyuncu
-const p={x:50,y:520,w:40,h:60,vy:0};
+const p={x:50,y:charY,w:40,h:charH,vy:0};
 
 // Objeler
-let shadows=[],npcs=[],spikes=[],movers=[];
-let boss=null;
-let exit={x:0,y:500,w:40,h:80};
+let shadows=[],npcs=[],spikes=[],movers=[],boss=null;
+let exit={x:0,y:groundY-100,w:40,h:80};
 
-// Kontroller
+// 🎮 Kontroller
 function bind(id,on,off){
   const e=document.getElementById(id);
   e.ontouchstart=t=>{t.preventDefault();on()};
@@ -65,28 +72,58 @@ function bind(id,on,off){
 }
 bind("left",()=>L=true,()=>L=false);
 bind("right",()=>R=true,()=>R=false);
-bind("jump",()=>{if(p.y>=ground)p.vy=-12;beep(600)},()=>{});
+bind("jump",()=>{if(p.y>=charY)p.vy=-12;beep(600)},()=>{});
 bind("slow",()=>{if(slow<=0)slow=120},()=>{});
 
 // Çarpışma
 const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 
+// 🎨 Arka plan
+function drawBackground(){
+  const sky=ctx.createLinearGradient(0,0,0,640);
+  sky.addColorStop(0,"#0a1a2a");
+  sky.addColorStop(1,"#1e3c5a");
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,360,640);
+
+  ctx.fillStyle="#142838";
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.moveTo(i*300-cam*0.2,600);
+    ctx.lineTo(i*300+150-cam*0.2,420);
+    ctx.lineTo(i*300+300-cam*0.2,600);
+    ctx.fill();
+  }
+
+  ctx.fillStyle="#0b1b26";
+  for(let i=0;i<20;i++){
+    ctx.fillRect(i*120-cam*0.4,480,60,120);
+  }
+}
+
 // Level kur
 function setupLevel(){
   world=2000+level*600;
-  p.x=50;p.y=520;p.vy=0;
+  p.x=50;p.y=charY;p.vy=0;
   exit.x=world-60;
 
-  shadows=[{x:-200,y:520,w:40,h:60,s:1+level*0.15}];
+  shadows=[{x:-200,y:charY,w:40,h:charH,s:1+level*0.15}];
 
-  npcs=[{x:900,y:520,w:40,h:60,dir:1,min:800,max:1200,s:1.2}];
+  npcs=[{
+    x:900,y:charY,w:40,h:charH,
+    dir:1,min:800,max:1200,s:0.7,stun:0
+  }];
 
   spikes=[];
-  for(let i=1;i<=level;i++)spikes.push({x:300*i+200,y:560,w:30,h:40});
+  for(let i=1;i<=level;i++)
+    spikes.push({x:300*i+200,y:groundY-40,w:30,h:40});
 
   movers=[{x:600,y:500,w:60,h:10,dir:1,min:450,max:550}];
 
-  boss = (level%5==0)?{x:world-300,y:480,w:80,h:120,dir:1}:null;
+  boss = (level%5==0)?{
+    x:world-350,y:groundY-120,w:80,h:120,
+    dir:1,speed:1.2,min:world-500,max:world-200
+  }:null;
 
   document.getElementById("lvl").innerText=level;
 }
@@ -99,7 +136,7 @@ function update(){
   if(p.x>world-p.w)p.x=world-p.w;
 
   p.vy+=g;p.y+=p.vy;
-  if(p.y>ground){p.y=ground;p.vy=0}
+  if(p.y>charY){p.y=charY;p.vy=0}
 
   score=Math.max(score,Math.floor(p.x/10));
   document.getElementById("score").innerText=score;
@@ -109,13 +146,19 @@ function update(){
 
   shadows.forEach(s=>{
     s.x+=(p.x>s.x?s.s*(slow?0.4:1):-s.s);
+    s.y=charY;
     if(hit(p,s))damage();
   });
 
   npcs.forEach(n=>{
+    n.y=charY;
+    if(n.stun>0){n.stun--;return;}
     n.x+=n.s*n.dir;
     if(n.x<n.min||n.x>n.max)n.dir*=-1;
-    if(hit(p,n))damage();
+    if(hit(p,n)){
+      p.x-=100;p.vy=-6;
+      n.stun=60;shake=8;beep(250);
+    }
   });
 
   movers.forEach(m=>{
@@ -127,9 +170,9 @@ function update(){
   spikes.forEach(sp=>{if(hit(p,sp))damage();});
 
   if(boss){
-    boss.x+=boss.dir*2;
-    if(boss.x<world-500||boss.x>world-200)boss.dir*=-1;
-    if(hit(p,boss))damage();
+    boss.x+=boss.dir*boss.speed;
+    if(boss.x<boss.min||boss.x>boss.max)boss.dir*=-1;
+    if(hit(p,boss)){p.x-=120;p.vy=-8;shake=10;beep(180);}
   }
 
   cam=Math.max(0,Math.min(p.x-180,world-360));
@@ -141,29 +184,43 @@ function update(){
 function damage(){
   shake=15;beep(200);
   lives--;
-  if(lives<=0){
-    lives=3;score=0;level=1;
-  }
+  if(lives<=0){lives=3;score=0;level=1;}
   setupLevel();
 }
 
 // Çiz
 function draw(){
-  ctx.clearRect(0,0,360,640);
   ctx.save();
-  ctx.translate(-cam+(Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
+  ctx.translate((Math.random()-0.5)*shake-cam,(Math.random()-0.5)*shake);
   if(shake>0)shake--;
 
-  ctx.fillStyle="#444";ctx.fillRect(0,600,world,40);
+  drawBackground();
 
-  ctx.fillStyle="#f00";spikes.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
-  ctx.fillStyle="#0f0";ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+  ctx.fillStyle="#444";
+  ctx.fillRect(0,groundY,world,40);
 
-  ctx.fillStyle="#0ff";ctx.fillRect(p.x,p.y,p.w,p.h);
-  ctx.fillStyle="#000";shadows.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
-  ctx.fillStyle="#ff0";npcs.forEach(n=>ctx.fillRect(n.x,n.y,n.w,n.h));
-  ctx.fillStyle="#fff";movers.forEach(m=>ctx.fillRect(m.x,m.y,m.w,m.h));
-  if(boss){ctx.fillStyle="#800";ctx.fillRect(boss.x,boss.y,boss.w,boss.h);}
+  ctx.fillStyle="#f00";
+  spikes.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
+
+  ctx.fillStyle="#0f0";
+  ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+
+  ctx.fillStyle="#0ff";
+  ctx.fillRect(p.x,p.y,p.w,p.h);
+
+  ctx.fillStyle="#000";
+  shadows.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
+
+  ctx.fillStyle="#ff0";
+  npcs.forEach(n=>ctx.fillRect(n.x,n.y,n.w,n.h));
+
+  ctx.fillStyle="#fff";
+  movers.forEach(m=>ctx.fillRect(m.x,m.y,m.w,m.h));
+
+  if(boss){
+    ctx.fillStyle="#800";
+    ctx.fillRect(boss.x,boss.y,boss.w,boss.h);
+  }
 
   ctx.restore();
 }
