@@ -4,47 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Stickman Kaçışı</title>
-
 <style>
 body{margin:0;background:#111;font-family:Arial;touch-action:none}
 canvas{display:block;margin:auto;background:#222}
-
-.btn{
-position:fixed;bottom:20px;width:60px;height:60px;
-border-radius:50%;background:#00ffff88;
-text-align:center;line-height:60px;font-size:24px
-}
-#left{left:20px}
-#right{left:100px}
-#jump{right:100px}
-#slow{right:20px;background:#ffff0088}
-
-#hud{position:fixed;top:10px;right:10px;color:#fff}
-
-.screen{
-position:fixed;inset:0;background:#111;
-display:flex;flex-direction:column;
-align-items:center;justify-content:center;color:#fff
-}
-.screen button{
-padding:15px 40px;font-size:22px;
-border:none;border-radius:30px;background:#00ffff
-}
+.btn{position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
+background:#00ffff88;text-align:center;line-height:60px;font-size:24px}
+#left{left:20px} #right{left:100px}
+#jump{right:100px} #slow{right:20px;background:#ffff0088}
+#hud{position:fixed;top:10px;left:10px;color:#fff}
 </style>
 </head>
 <body>
 
-<div id="menu" class="screen">
-<h1>Stickman Kaçışı</h1>
-<button onclick="start()">BAŞLA</button>
+<div id="hud">
+Level: <span id="lvl">1</span> |
+Süre: <span id="time">0.0</span>
 </div>
 
-<div id="end" class="screen" style="display:none">
-<h1 id="endText"></h1>
-<button onclick="reset()">TEKRAR OYNA</button>
-</div>
-
-<div id="hud">Süre: <span id="time">0.0</span></div>
 <canvas id="game" width="360" height="640"></canvas>
 
 <div id="left" class="btn">⬅️</div>
@@ -55,37 +31,28 @@ border:none;border-radius:30px;background:#00ffff
 <script>
 const c=document.getElementById("game"),ctx=c.getContext("2d");
 
-// GÖRSELLER
-const playerImg=new Image();
-playerImg.src="player.png";
+// Görseller
+const playerImg=new Image(); playerImg.src="player.png";
+const shadowImg=new Image(); shadowImg.src="shadow.png";
 
-const shadowImg=new Image();
-shadowImg.src="shadow.png";
-
-// OYUN DURUMU
-let running=false,startTime=0,time=0;
-let cam=0,world=2000,slow=0,shield=true;
+// Oyun durumu
+let level=1,running=true,startTime=performance.now(),time=0;
+let cam=0,world=2000,slow=0,shake=0;
 let L=false,R=false;
 
-// OYUNCU
+// Oyuncu
 const p={x:50,y:520,w:40,h:60,vy:0};
 
-// GÖLGELER
-const shadows=[
-{x:-200,y:520,w:40,h:60,s:1.1},
-{x:-400,y:520,w:40,h:60,s:0.8}
-];
+// Gölge
+let shadows=[{x:-200,y:520,w:40,h:60,s:1.1}];
 
-// PLATFORM & ÇIKIŞ
-const plats=[
-{x:600,y:480,w:120,h:10},
-{x:1000,y:440,w:120,h:10}
-];
-const exit={x:world-60,y:500,w:40,h:80};
+// Platform
+let plats=[{x:600,y:480,w:120,h:10}];
+let exit={x:world-60,y:500,w:40,h:80};
 
 const g=0.6,ground=560;
 
-// DOKUNMATİK
+// Dokunmatik
 function bind(id,on,off){
 const e=document.getElementById(id);
 e.ontouchstart=t=>{t.preventDefault();on()};
@@ -94,46 +61,38 @@ e.ontouchend=t=>{t.preventDefault();off()};
 bind("left",()=>L=true,()=>L=false);
 bind("right",()=>R=true,()=>R=false);
 bind("jump",()=>{if(p.y>=ground)p.vy=-12},()=>{});
-bind("slow",()=>{if(slow<=0)slow=180},()=>{});
+bind("slow",()=>{if(slow<=0)slow=150},()=>{});
 
-// OYUN AKIŞI
-function start(){
-document.getElementById("menu").style.display="none";
-init(); running=true;
-startTime=performance.now();
-loop();
-}
-function reset(){
-document.getElementById("end").style.display="none";
-start();
-}
-function init(){
-p.x=50;p.y=520;p.vy=0;
-shadows.forEach((s,i)=>s.x=-200*i);
-shield=true; slow=0;
-}
-
-// ÇARPIŞMA
+// Çarpışma
 function hit(a,b){
-return a.x<b.x+b.w&&a.x+a.w>b.x&&
-a.y<b.y+b.h&&a.y+a.h>b.y;
+return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 }
 
-// GÜNCELLE
-function update(){
-if(!running)return;
+// Level kur
+function setupLevel(){
+world=2000+level*600;
+exit.x=world-60;
+p.x=50;p.y=520;p.vy=0;
+shadows=[{x:-200,y:520,w:40,h:60,s:1+level*0.2}];
+plats=[];
+for(let i=1;i<=level+1;i++){
+plats.push({x:400*i,y:520-40*i,w:120,h:10});
+}
+document.getElementById("lvl").innerText=level;
+}
 
+// Güncelle
+function update(){
 time=(performance.now()-startTime)/1000;
 document.getElementById("time").innerText=time.toFixed(1);
 
 if(L)p.x-=3;
 if(R)p.x+=3;
 
-p.vy+=g;
-p.y+=p.vy;
+p.vy+=g;p.y+=p.vy;
 if(p.y>ground){p.y=ground;p.vy=0}
 
-// PLATFORM
+// Platform
 plats.forEach(pl=>{
 if(p.x<p.x+p.w&&p.x+p.w>pl.x&&
 p.y+p.h>pl.y&&p.y+p.h<pl.y+20){
@@ -141,72 +100,67 @@ p.y=pl.y-p.h;p.vy=0;
 }
 });
 
-// GÖLGELER
+// Gölge
 if(slow>0)slow--;
 shadows.forEach(s=>{
-let sp=s.s*(slow>0?0.4:1);
-s.x+=(p.x>s.x?sp:-sp);
-if(hit(p,s)){
-if(shield){shield=false;s.x-=60;}
-else end("YAKALANDIN");
-}
+s.x+=(p.x>s.x?(s.s*(slow?0.4:1)):-s.s);
+if(hit(p,s)){shake=20; setupLevel(); }
 });
 
-if(hit(p,exit)) end("KAÇTIN! 🎉");
-
+// Kamera
 cam=Math.max(0,Math.min(p.x-180,world-360));
+
+// Kazanma
+if(hit(p,exit)){level++; setupLevel();}
 }
 
-// ÇİZ
+// Çiz
 function draw(){
 ctx.clearRect(0,0,360,640);
-ctx.save();ctx.translate(-cam,0);
+ctx.save();
+let sx=(Math.random()-0.5)*shake;
+let sy=(Math.random()-0.5)*shake;
+if(shake>0)shake--;
+ctx.translate(-cam+sx,sy);
 
-// ZEMİN
+// Zemin
 ctx.fillStyle="#444";
 ctx.fillRect(0,600,world,40);
 
-// PLATFORM
+// Platform
 ctx.fillStyle="#888";
 plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
 
-// ÇIKIŞ
+// Çıkış
 ctx.fillStyle="#0f0";
 ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
 
-// OYUNCU (KESİN)
-if(playerImg.complete && playerImg.naturalWidth>0){
+// Oyuncu
+if(playerImg.complete)
 ctx.drawImage(playerImg,p.x,p.y,p.w,p.h);
-}else{
-ctx.fillStyle="#00ffff";
-ctx.fillRect(p.x,p.y,p.w,p.h);
+else{
+ctx.fillStyle="#0ff";ctx.fillRect(p.x,p.y,p.w,p.h);
 }
 
-// GÖLGELER
+// Gölge
 shadows.forEach(s=>{
-if(shadowImg.complete && shadowImg.naturalWidth>0){
+if(shadowImg.complete)
 ctx.drawImage(shadowImg,s.x,s.y,s.w,s.h);
-}else{
-ctx.fillStyle="#000";
-ctx.fillRect(s.x,s.y,s.w,s.h);
+else{
+ctx.fillStyle="#000";ctx.fillRect(s.x,s.y,s.w,s.h);
 }
 });
 
 ctx.restore();
 }
 
-// BİTİŞ
-function end(t){
-running=false;
-document.getElementById("endText").innerText=t;
-document.getElementById("end").style.display="flex";
-}
-
 function loop(){
-update(); draw();
-if(running)requestAnimationFrame(loop);
+update();draw();
+requestAnimationFrame(loop);
 }
-</script>
 
+setupLevel();
+loop();
+</script>
 </body>
 </html>
