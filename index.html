@@ -36,7 +36,7 @@ const playerImg=new Image(); playerImg.src="player.png";
 const shadowImg=new Image(); shadowImg.src="shadow.png";
 
 // Oyun durumu
-let level=1,running=true,startTime=performance.now(),time=0;
+let level=1,startTime=performance.now(),time=0;
 let cam=0,world=2000,slow=0,shake=0;
 let L=false,R=false;
 
@@ -46,9 +46,15 @@ const p={x:50,y:520,w:40,h:60,vy:0};
 // Gölge
 let shadows=[{x:-200,y:520,w:40,h:60,s:1.1}];
 
+// 🧱 Engeller (diken)
+let spikes=[];
+
+// 🤖 NPC
+let npcs=[];
+
 // Platform
-let plats=[{x:600,y:480,w:120,h:10}];
-let exit={x:world-60,y:500,w:40,h:80};
+let plats=[];
+let exit={x:0,y:500,w:40,h:80};
 
 const g=0.6,ground=560;
 
@@ -65,7 +71,8 @@ bind("slow",()=>{if(slow<=0)slow=150},()=>{});
 
 // Çarpışma
 function hit(a,b){
-return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+return a.x<b.x+b.w&&a.x+a.w>b.x&&
+a.y<b.y+b.h&&a.y+a.h>b.y;
 }
 
 // Level kur
@@ -73,11 +80,26 @@ function setupLevel(){
 world=2000+level*600;
 exit.x=world-60;
 p.x=50;p.y=520;p.vy=0;
-shadows=[{x:-200,y:520,w:40,h:60,s:1+level*0.2}];
+shadows=[{x:-200,y:520,w:40,h:60,s:1+level*0.15}];
+
+// Platformlar
 plats=[];
-for(let i=1;i<=level+1;i++){
+for(let i=1;i<=level+2;i++){
 plats.push({x:400*i,y:520-40*i,w:120,h:10});
 }
+
+// Engeller
+spikes=[];
+for(let i=1;i<=level+1;i++){
+spikes.push({x:300*i+200,y:560,w:30,h:40});
+}
+
+// NPC
+npcs=[{
+x:800,y:520,w:40,h:60,
+dir:1,min:700,max:1100,s:1.2
+}];
+
 document.getElementById("lvl").innerText=level;
 }
 
@@ -86,9 +108,13 @@ function update(){
 time=(performance.now()-startTime)/1000;
 document.getElementById("time").innerText=time.toFixed(1);
 
+// Hareket
 if(L)p.x-=3;
 if(R)p.x+=3;
+if(p.x<0)p.x=0;
+if(p.x>world-p.w)p.x=world-p.w;
 
+// Fizik
 p.vy+=g;p.y+=p.vy;
 if(p.y>ground){p.y=ground;p.vy=0}
 
@@ -104,14 +130,34 @@ p.y=pl.y-p.h;p.vy=0;
 if(slow>0)slow--;
 shadows.forEach(s=>{
 s.x+=(p.x>s.x?(s.s*(slow?0.4:1)):-s.s);
-if(hit(p,s)){shake=20; setupLevel(); }
+if(s.x<-200)s.x=-200;
+if(s.x>world-s.w)s.x=world-s.w;
+if(hit(p,s)){shake=20;setupLevel();}
+});
+
+// NPC
+npcs.forEach(n=>{
+n.x+=n.s*n.dir;
+if(n.x<n.min||n.x>n.max)n.dir*=-1;
+if(hit(p,n)){shake=20;setupLevel();}
+});
+
+// Diken
+spikes.forEach(sp=>{
+if(hit(p,sp)){
+shake=10;
+p.x-=80;
+}
 });
 
 // Kamera
 cam=Math.max(0,Math.min(p.x-180,world-360));
 
 // Kazanma
-if(hit(p,exit)){level++; setupLevel();}
+if(hit(p,exit)){
+level++;
+setupLevel();
+}
 }
 
 // Çiz
@@ -130,6 +176,10 @@ ctx.fillRect(0,600,world,40);
 // Platform
 ctx.fillStyle="#888";
 plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
+
+// Diken
+ctx.fillStyle="#f00";
+spikes.forEach(sp=>ctx.fillRect(sp.x,sp.y,sp.w,sp.h));
 
 // Çıkış
 ctx.fillStyle="#0f0";
@@ -150,6 +200,10 @@ else{
 ctx.fillStyle="#000";ctx.fillRect(s.x,s.y,s.w,s.h);
 }
 });
+
+// NPC
+ctx.fillStyle="#ff0";
+npcs.forEach(n=>ctx.fillRect(n.x,n.y,n.w,n.h));
 
 ctx.restore();
 }
