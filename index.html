@@ -3,17 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Stickman Kaçışı</title>
+<title>Gölge Kaçışı</title>
+
 <style>
-body{margin:0;background:#111;font-family:Arial;touch-action:none}
-canvas{display:block;margin:auto;background:#222}
-.btn{position:fixed;bottom:20px;width:60px;height:60px;border-radius:50%;
-background:#00ffff88;text-align:center;line-height:60px;font-size:24px}
-#left{left:20px} #right{left:100px}
-#jump{right:100px} #slow{right:20px;background:#ffff0088}
-#hud{position:fixed;top:10px;left:10px;color:#fff}
+body{
+  margin:0;
+  background:#111;
+  font-family:Arial;
+  touch-action:none;
+}
+canvas{
+  display:block;
+  margin:auto;
+  background:#222;
+}
+.btn{
+  position:fixed;
+  bottom:20px;
+  width:60px;
+  height:60px;
+  border-radius:50%;
+  background:#00ffff88;
+  text-align:center;
+  line-height:60px;
+  font-size:24px;
+}
+#left{left:20px}
+#right{left:100px}
+#jump{right:100px}
+#slow{right:20px;background:#ffff0088}
+#hud{
+  position:fixed;
+  top:10px;
+  left:10px;
+  color:#fff;
+}
 </style>
 </head>
+
 <body>
 
 <div id="hud">
@@ -29,188 +56,174 @@ Süre: <span id="time">0.0</span>
 <div id="slow" class="btn">⚡</div>
 
 <script>
-const c=document.getElementById("game"),ctx=c.getContext("2d");
+const c = document.getElementById("game");
+const ctx = c.getContext("2d");
 
-// Görseller
-const playerImg=new Image(); playerImg.src="player.png";
-const shadowImg=new Image(); shadowImg.src="shadow.png";
+let level = 1;
+let world = 2000;
+let cam = 0;
+let shake = 0;
+let slow = 0;
+let startTime = performance.now();
 
-// Oyun durumu
-let level=1,startTime=performance.now(),time=0;
-let cam=0,world=2000,slow=0,shake=0;
-let L=false,R=false;
+let L=false, R=false;
 
-// Oyuncu
-const p={x:50,y:520,w:40,h:60,vy:0};
+const ground = 560;
+const g = 0.6;
 
-// Gölge
-let shadows=[{x:-200,y:520,w:40,h:60,s:1.1}];
+// 🟦 Oyuncu
+const p = { x:50, y:520, w:40, h:60, vy:0 };
 
-// 🧱 Engeller (diken)
-let spikes=[];
+// ⬛ Gölge
+let shadows = [];
 
-// 🤖 NPC
-let npcs=[];
+// 🟨 NPC
+let npcs = [];
 
-// Platform
-let plats=[];
-let exit={x:0,y:500,w:40,h:80};
+// 🟥 Diken
+let spikes = [];
 
-const g=0.6,ground=560;
+// ⬜ Platform
+let plats = [];
+
+// 🟩 Çıkış
+let exit = {x:0,y:500,w:40,h:80};
 
 // Dokunmatik
 function bind(id,on,off){
-const e=document.getElementById(id);
-e.ontouchstart=t=>{t.preventDefault();on()};
-e.ontouchend=t=>{t.preventDefault();off()};
+  const e=document.getElementById(id);
+  e.ontouchstart=t=>{t.preventDefault();on();}
+  e.ontouchend=t=>{t.preventDefault();off();}
 }
 bind("left",()=>L=true,()=>L=false);
 bind("right",()=>R=true,()=>R=false);
 bind("jump",()=>{if(p.y>=ground)p.vy=-12},()=>{});
-bind("slow",()=>{if(slow<=0)slow=150},()=>{});
+bind("slow",()=>{if(slow<=0)slow=120},()=>{});
 
 // Çarpışma
 function hit(a,b){
-return a.x<b.x+b.w&&a.x+a.w>b.x&&
-a.y<b.y+b.h&&a.y+a.h>b.y;
+  return a.x<b.x+b.w && a.x+a.w>b.x &&
+         a.y<b.y+b.h && a.y+a.h>b.y;
 }
 
 // Level kur
 function setupLevel(){
-world=2000+level*600;
-exit.x=world-60;
-p.x=50;p.y=520;p.vy=0;
-shadows=[{x:-200,y:520,w:40,h:60,s:1+level*0.15}];
+  world = 2000 + level*600;
+  p.x = 50; p.y = 520; p.vy = 0;
+  exit.x = world - 60;
 
-// Platformlar
-plats=[];
-for(let i=1;i<=level+2;i++){
-plats.push({x:400*i,y:520-40*i,w:120,h:10});
-}
+  shadows = [{
+    x:-200, y:520, w:40, h:60, s:1+level*0.15
+  }];
 
-// Engeller
-spikes=[];
-for(let i=1;i<=level+1;i++){
-spikes.push({x:300*i+200,y:560,w:30,h:40});
-}
+  plats = [];
+  for(let i=1;i<=level+2;i++){
+    plats.push({x:400*i,y:520-40*i,w:120,h:10});
+  }
 
-// NPC
-npcs=[{
-x:800,y:520,w:40,h:60,
-dir:1,min:700,max:1100,s:1.2
-}];
+  spikes = [];
+  for(let i=1;i<=level+1;i++){
+    spikes.push({x:300*i+200,y:560,w:30,h:40});
+  }
 
-document.getElementById("lvl").innerText=level;
+  npcs = [{
+    x:800,y:520,w:40,h:60,
+    dir:1,min:700,max:1100,s:1.2
+  }];
+
+  document.getElementById("lvl").innerText = level;
 }
 
 // Güncelle
 function update(){
-time=(performance.now()-startTime)/1000;
-document.getElementById("time").innerText=time.toFixed(1);
+  const time=((performance.now()-startTime)/1000).toFixed(1);
+  document.getElementById("time").innerText=time;
 
-// Hareket
-if(L)p.x-=3;
-if(R)p.x+=3;
-if(p.x<0)p.x=0;
-if(p.x>world-p.w)p.x=world-p.w;
+  if(L)p.x-=3;
+  if(R)p.x+=3;
 
-// Fizik
-p.vy+=g;p.y+=p.vy;
-if(p.y>ground){p.y=ground;p.vy=0}
+  if(p.x<0)p.x=0;
+  if(p.x>world-p.w)p.x=world-p.w;
 
-// Platform
-plats.forEach(pl=>{
-if(p.x<p.x+p.w&&p.x+p.w>pl.x&&
-p.y+p.h>pl.y&&p.y+p.h<pl.y+20){
-p.y=pl.y-p.h;p.vy=0;
-}
-});
+  p.vy+=g;
+  p.y+=p.vy;
+  if(p.y>ground){p.y=ground;p.vy=0;}
 
-// Gölge
-if(slow>0)slow--;
-shadows.forEach(s=>{
-s.x+=(p.x>s.x?(s.s*(slow?0.4:1)):-s.s);
-if(s.x<-200)s.x=-200;
-if(s.x>world-s.w)s.x=world-s.w;
-if(hit(p,s)){shake=20;setupLevel();}
-});
+  plats.forEach(pl=>{
+    if(p.x<p.x+p.w && p.x+p.w>pl.x &&
+       p.y+p.h>pl.y && p.y+p.h<pl.y+20){
+      p.y=pl.y-p.h;
+      p.vy=0;
+    }
+  });
 
-// NPC
-npcs.forEach(n=>{
-n.x+=n.s*n.dir;
-if(n.x<n.min||n.x>n.max)n.dir*=-1;
-if(hit(p,n)){shake=20;setupLevel();}
-});
+  if(slow>0)slow--;
+  shadows.forEach(s=>{
+    s.x+=(p.x>s.x ? s.s*(slow?0.4:1) : -s.s);
+    if(s.x<-200)s.x=-200;
+    if(s.x>world-s.w)s.x=world-s.w;
+    if(hit(p,s)){shake=20;setupLevel();}
+  });
 
-// Diken
-spikes.forEach(sp=>{
-if(hit(p,sp)){
-shake=10;
-p.x-=80;
-}
-});
+  npcs.forEach(n=>{
+    n.x+=n.s*n.dir;
+    if(n.x<n.min||n.x>n.max)n.dir*=-1;
+    if(hit(p,n)){shake=20;setupLevel();}
+  });
 
-// Kamera
-cam=Math.max(0,Math.min(p.x-180,world-360));
+  spikes.forEach(sp=>{
+    if(hit(p,sp)){
+      shake=10;
+      p.x-=80;
+    }
+  });
 
-// Kazanma
-if(hit(p,exit)){
-level++;
-setupLevel();
-}
+  cam=Math.max(0,Math.min(p.x-180,world-360));
+
+  if(hit(p,exit)){
+    level++;
+    setupLevel();
+  }
 }
 
 // Çiz
 function draw(){
-ctx.clearRect(0,0,360,640);
-ctx.save();
-let sx=(Math.random()-0.5)*shake;
-let sy=(Math.random()-0.5)*shake;
-if(shake>0)shake--;
-ctx.translate(-cam+sx,sy);
+  ctx.clearRect(0,0,360,640);
+  ctx.save();
 
-// Zemin
-ctx.fillStyle="#444";
-ctx.fillRect(0,600,world,40);
+  const sx=(Math.random()-0.5)*shake;
+  const sy=(Math.random()-0.5)*shake;
+  if(shake>0)shake--;
+  ctx.translate(-cam+sx,sy);
 
-// Platform
-ctx.fillStyle="#888";
-plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
+  ctx.fillStyle="#444";
+  ctx.fillRect(0,600,world,40);
 
-// Diken
-ctx.fillStyle="#f00";
-spikes.forEach(sp=>ctx.fillRect(sp.x,sp.y,sp.w,sp.h));
+  ctx.fillStyle="#888";
+  plats.forEach(pl=>ctx.fillRect(pl.x,pl.y,pl.w,pl.h));
 
-// Çıkış
-ctx.fillStyle="#0f0";
-ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+  ctx.fillStyle="#f00";
+  spikes.forEach(sp=>ctx.fillRect(sp.x,sp.y,sp.w,sp.h));
 
-// Oyuncu
-if(playerImg.complete)
-ctx.drawImage(playerImg,p.x,p.y,p.w,p.h);
-else{
-ctx.fillStyle="#0ff";ctx.fillRect(p.x,p.y,p.w,p.h);
-}
+  ctx.fillStyle="#0f0";
+  ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
 
-// Gölge
-shadows.forEach(s=>{
-if(shadowImg.complete)
-ctx.drawImage(shadowImg,s.x,s.y,s.w,s.h);
-else{
-ctx.fillStyle="#000";ctx.fillRect(s.x,s.y,s.w,s.h);
-}
-});
+  ctx.fillStyle="#00ffff";
+  ctx.fillRect(p.x,p.y,p.w,p.h);
 
-// NPC
-ctx.fillStyle="#ff0";
-npcs.forEach(n=>ctx.fillRect(n.x,n.y,n.w,n.h));
+  ctx.fillStyle="#000";
+  shadows.forEach(s=>ctx.fillRect(s.x,s.y,s.w,s.h));
 
-ctx.restore();
+  ctx.fillStyle="#ff0";
+  npcs.forEach(n=>ctx.fillRect(n.x,n.y,n.w,n.h));
+
+  ctx.restore();
 }
 
 function loop(){
-update();draw();
-requestAnimationFrame(loop);
+  update();
+  draw();
+  requestAnimationFrame(loop);
 }
 
 setupLevel();
